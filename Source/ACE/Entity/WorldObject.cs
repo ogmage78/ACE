@@ -120,6 +120,7 @@ namespace ACE.Entity
                 obj.PhysicsData.PhysicsDescriptionFlag = PhysicsDescriptionFlag.Position;
 
                 // TODO: Send the last part of the sequence.   GameMessageUpdatePosition - I am doing something wrong here 
+
                 obj.UpdatePositionFlags = UpdatePositionFlag.Contact | UpdatePositionFlag.Placement | UpdatePositionFlag.NoQuaternionY  | UpdatePositionFlag.NoQuaternionX;
                 session.Network.EnqueueSend(new GameMessageUpdatePosition(obj));
 
@@ -293,18 +294,14 @@ namespace ACE.Entity
 
             // ToDo: Need to fix this - hardcoded for now.
             if ((UpdatePositionFlags & UpdatePositionFlag.Placement) != 0)
-                writer.Write((byte)0x065);
+                writer.Write((uint)0x12345678);
 
             var player = Guid.IsPlayer() ? this as Player : null;
-            writer.Write((player?.TotalLogins ?? 0));
-            writer.Write(++MovementIndex);
-            writer.Write(TeleportIndex);
-
-            // TODO: this is the "contact" flag, which is a flag for whether or not
-            // the player is "in contact" with the ground.  Sending the 0 here causes
-            // others to see the player being update with arms horizontal and falling.
-            if ((UpdatePositionFlags & UpdatePositionFlag.Contact) != 0)
-                writer.Write((uint)0);
+            writer.Write((player?.TotalLogins ?? (ushort)0x1234));
+            //writer.Write(++MovementIndex);
+            //writer.Write(TeleportIndex);
+            writer.Write((ushort)0x1234);
+            writer.Write((ushort)0x1234);
         }
     }
 }
