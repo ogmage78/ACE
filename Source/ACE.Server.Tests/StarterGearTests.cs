@@ -1,10 +1,11 @@
 using System;
 using System.IO;
 
-using Newtonsoft.Json;
+using System.Text.Json;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using ACE.Common;
 using ACE.Server.Entity;
 
 namespace ACE.Server.Tests
@@ -16,10 +17,10 @@ namespace ACE.Server.Tests
         public void CanParseStarterGearJson()
         {
             var testDir = AppContext.BaseDirectory;
-            var starterGearPath = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "ACE.Server", "starterGear.json"));
+            var starterGearPath = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", "..", "ACE.Server", "starterGear.json"));
             string contents = File.ReadAllText(starterGearPath);
 
-            StarterGearConfiguration config = JsonConvert.DeserializeObject<StarterGearConfiguration>(contents);
+            StarterGearConfiguration config = JsonSerializer.Deserialize<StarterGearConfiguration>(contents, ConfigManager.SerializerOptions);
         }
     }
 }
