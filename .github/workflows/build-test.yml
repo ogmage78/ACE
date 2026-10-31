@@ -64,3 +64,14 @@ jobs:
         run: .cursor/skills/verify-ace/scripts/verify.sh build
       - name: verify db
         run: .cursor/skills/verify-ace/scripts/verify.sh db
+
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: guard
+        env:
+          GUARD_HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: .cursor/skills/verify-ace/scripts/guard.sh
