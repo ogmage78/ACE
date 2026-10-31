@@ -59,7 +59,6 @@ port=3306
 user=root
 password=${password}
 protocol=TCP
-ssl-mode=DISABLED
 max_allowed_packet=64M
 EOF
   chmod 600 "$cnf"
@@ -68,7 +67,18 @@ EOF
 
 mysql_query_ok() {
   local cnf="$1"
-  mysql --defaults-extra-file="$cnf" -N -e 'SELECT 1' >/dev/null 2>&1
+  mysql --defaults-extra-file="$cnf" -N -e 'SELECT 1' >/dev/null 2>"$CACHE/mysql-query.err"
+}
+
+show_mysql_client_error() {
+  if [[ -s "$CACHE/mysql-query.err" ]]; then
+    echo "verify-ace: mysql client error:" >&2
+    cat "$CACHE/mysql-query.err" >&2
+  fi
+}
+
+port_3306_open() {
+  timeout 2 bash -c 'echo >/dev/tcp/127.0.0.1/3306' >/dev/null 2>&1
 }
 
 ensure_mysql_client() {
@@ -187,12 +197,15 @@ start_mysql_container() {
   }
   echo "verify-ace: starting mysql:8.0 container ace-verify-mysql" >&2
   "${DOCKER[@]}" rm -f ace-verify-mysql >/dev/null 2>&1 || true
-  "${DOCKER[@]}" run -d --name ace-verify-mysql \
+  if ! "${DOCKER[@]}" run -d --name ace-verify-mysql \
     -e MYSQL_ROOT_PASSWORD="$password" \
     -e MYSQL_ROOT_HOST='%' \
     -p 3306:3306 \
     mysql:8.0 \
-    --max-allowed-packet=67108864
+    --max-allowed-packet=67108864; then
+    echo "verify-ace: docker run mysql:8.0 failed" >&2
+    return 1
+  fi
   printf 'ace-verify-mysql\n' >"$CACHE/mysql-container-started"
 }
 
@@ -206,7 +219,12 @@ ensure_mysql() {
     printf '%s\n' "$cnf"
     return 0
   fi
-  start_mysql_container "$password" || return 1
+  if port_3306_open; then
+    echo "verify-ace: 127.0.0.1:3306 is open, so this run will not start another mysql:8.0 container" >&2
+    show_mysql_client_error
+  else
+    start_mysql_container "$password" || return 1
+  fi
   local i
   for i in $(seq 1 90); do
     if mysql_query_ok "$cnf"; then
@@ -214,9 +232,13 @@ ensure_mysql() {
       printf '%s\n' "$cnf"
       return 0
     fi
+    if (( i == 1 || i == 5 )); then
+      show_mysql_client_error
+    fi
     sleep 2
   done
   echo "verify-ace: MySQL did not accept queries on 127.0.0.1:3306" >&2
+  show_mysql_client_error
   return 1
 }
 
