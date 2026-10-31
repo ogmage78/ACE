@@ -264,7 +264,11 @@ guard_main() {
     return 1
   fi
 
-  echo "guard: clean. origin/master...HEAD does not touch a protected path (branch ${branch}). ${trigger_msg}."
+  if (( notice == 1 )); then
+    echo "guard: workflow rules passed. Protected paths above are a NOTICE because the head branch is ace/sync-upstream. ${trigger_msg}."
+  else
+    echo "guard: clean. origin/master...HEAD does not touch a protected path (branch ${branch}). ${trigger_msg}."
+  fi
   return 0
 }
 
