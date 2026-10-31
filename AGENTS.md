@@ -8,7 +8,8 @@ Use `ace/<slug>` off `master`. One writer per PR. Never commit to `master` or `o
 
 ## Merge packet
 
-Before any merge request, run pstack interrogate and send only findings a run proved. Send Charles a merge packet from the template at `/workspace/ace/merge-packet-template.md` on the Lead box. That file is not in this repo. Open it and fill every field it lists.
+Before any merge request, run pstack interrogate and send only findings a run proved.
+ACE Lead prepares a merge packet for Charles before every merge.
 
 ## Do not commit or edit
 
