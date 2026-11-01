@@ -1,0 +1,78 @@
+name: build-test
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: verify build
+        run: .cursor/skills/verify-ace/scripts/verify.sh build
+
+  unit:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # verify.sh unit passes --no-build, and this job does not share the build job disk.
+      - name: verify build
+        run: .cursor/skills/verify-ace/scripts/verify.sh build
+      - name: verify unit
+        run: .cursor/skills/verify-ace/scripts/verify.sh unit
+      - name: upload unit trx
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-trx
+          path: |
+            **/unit.trx
+            **/startergear.trx
+          if-no-files-found: warn
+
+  db:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: "Password12!"
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping -h localhost --silent" --health-interval=10s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: verify build
+        run: .cursor/skills/verify-ace/scripts/verify.sh build
+      - name: verify db
+        run: .cursor/skills/verify-ace/scripts/verify.sh db
+
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: guard
+        env:
+          GUARD_HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+          GUARD_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'true' || 'false' }}
+        run: .cursor/skills/verify-ace/scripts/guard.sh
