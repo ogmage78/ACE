@@ -42,7 +42,7 @@ git diff --cached --name-only -- Source/ACE.Server/Config.js
 test -f Source/ACE.Server/bin/x64/Release/net10.0/ACE.Server.dll && echo build-present
 ```
 
-`dotnet test` can exit 0 after printing `No test is available`. That is not a pass. On this tree `Source/ACE.Server.Tests/ACE.Server.Tests.csproj` and `Source/ACE.Database.Tests/ACE.Database.Tests.csproj` reference `MSTest.TestAdapter` `4.4.0` and `MSTest.TestFramework` `4.4.1`. The adapter refuses to load when those versions differ, so discovery finds nothing. `verify.sh unit` exits non-zero unless the filter summary is exactly 9 passed and 0 failed. Do not report a pass from an exit code alone. Do not bump those packages in a PR whose file list does not include the csproj files.
+`dotnet test` can exit 0 after printing `No test is available`. That is not a pass. On this tree `Source/ACE.Server.Tests/ACE.Server.Tests.csproj` and `Source/ACE.Database.Tests/ACE.Database.Tests.csproj` reference `MSTest.TestAdapter` `4.4.1`, aligned with `MSTest.TestFramework` `4.4.1`. `verify.sh unit` exits non-zero unless the filter summary is exactly 9 passed and 0 failed. Do not report a pass from an exit code alone.
 
 A unit run that passed the filter and a StarterGear run are separate. StarterGear is not one of the 9.
 

@@ -71,13 +71,66 @@ collect_workflow_runner_hits() {
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     [[ "$f" == ".github/workflows/dat-tests.yml" ]] && continue
-    hits=$(git -C "$REPO_ROOT" show "HEAD:$f" | grep -n -F -e 'self-hosted' -e 'ace-dats' || true)
+    hits=$(git -C "$REPO_ROOT" show "HEAD:$f" | python3 -c '
+import re
+import sys
+
+path = sys.argv[1]
+lines = sys.stdin.read().splitlines()
+seen = set()
+
+def emit(n, text):
+    key = (n, text)
+    if key in seen:
+        return
+    seen.add(key)
+    print(f"{path}:{n}:{text}")
+
+def indent_of(s):
+    n = 0
+    for ch in s:
+        if ch == " ":
+            n += 1
+        elif ch == "\t":
+            n += 2
+        else:
+            break
+    return n
+
+for i, line in enumerate(lines, 1):
+    if "self-hosted" in line or re.search(r"ace-dats", line, re.IGNORECASE):
+        emit(i, line)
+
+i = 0
+while i < len(lines):
+    line = lines[i]
+    code = line.split("#", 1)[0]
+    if not re.search(r"(^|\s)runs-on\s*:", code):
+        i += 1
+        continue
+    block = [(i + 1, line)]
+    base = indent_of(line)
+    rest = code.split(":", 1)[1].strip()
+    j = i + 1
+    if rest == "" or rest in ("|", ">", "|-", ">-", "|+", ">+"):
+        while j < len(lines):
+            nxt = lines[j]
+            if nxt.strip() == "" or nxt.lstrip().startswith("#"):
+                j += 1
+                continue
+            if indent_of(nxt) > base:
+                block.append((j + 1, nxt))
+                j += 1
+            else:
+                break
+    if any("${{" in text for _, text in block):
+        for n, text in block:
+            if "${{" in text:
+                emit(n, text)
+    i = j if j > i else i + 1
+' "$f" || true)
     if [[ -n "$hits" ]]; then
-      local line
-      while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        printf '%s:%s\n' "$f" "$line"
-      done <<<"$hits"
+      printf '%s\n' "$hits"
     fi
   done < <(git -C "$REPO_ROOT" ls-tree -r --name-only HEAD -- .github/workflows)
 }
@@ -197,7 +250,7 @@ guard_main() {
     if path_is_protected "$path"; then
       protected+=("$path")
     fi
-  done < <(git diff --name-only "${base}...HEAD")
+  done < <(git diff --name-only --no-renames "${base}...HEAD")
 
   local csproj_hits new_policy
   csproj_hits=$(collect_csproj_hits "$base" || true)
@@ -211,7 +264,9 @@ guard_main() {
   set -e
 
   local notice=0
-  if [[ "$branch" == "ace/sync-upstream" ]]; then
+  # Branch name alone is not enough. CI sets GUARD_SAME_REPO from
+  # github.event.pull_request.head.repo.full_name == github.repository.
+  if [[ "$branch" == "ace/sync-upstream" && "${GUARD_SAME_REPO:-}" == "true" ]]; then
     notice=1
   fi
 

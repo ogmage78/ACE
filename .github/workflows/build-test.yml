@@ -74,4 +74,5 @@ jobs:
       - name: guard
         env:
           GUARD_HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+          GUARD_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'true' || 'false' }}
         run: .cursor/skills/verify-ace/scripts/guard.sh
