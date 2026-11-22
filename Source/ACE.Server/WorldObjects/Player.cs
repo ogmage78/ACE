@@ -333,6 +333,8 @@ namespace ACE.Server.WorldObjects
                 }
                 if (Session.AccessLevel == AccessLevel.Advocate)
                     IsAdvocate = true;
+                else if (IsAdvocate && !AdvocateQuest)
+                    IsAdvocate = false;
             }
 
             /// <summary>
