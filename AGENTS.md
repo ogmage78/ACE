@@ -21,7 +21,7 @@ Do not add a workflow that contains `self-hosted` or `ace-dats` except `.github/
 
 Run `.cursor/skills/verify-ace/scripts/verify.sh` with `build`, `unit`, `db`, `boot`, or `all` before opening or updating a PR, and quote its output. DAT files, DatLoader tests, and client login smoke are Charles-only. Agents never fetch, attach, or commit DATs.
 
-The `db` job in `.github/workflows/build-test.yml` is `continue-on-error: true` until the database tests run on Linux. It is not a required check. A `dotnet test` exit code of 0 with `No test is available` is not a pass.
+The `db` job in `.github/workflows/build-test.yml` runs `ACE.Database.Tests` and the StartupTests methods that do not need client DAT files. `WorldManager_Initialize` stays in the suite and is outside that job: landblock preload reads `DatManager.CellDat`, which is null without DAT files and aborts the test host. The job is not a required check until Charles adds it. A `dotnet test` exit code of 0 with `No test is available` is not a pass.
 
 ## Usage soft cap
 

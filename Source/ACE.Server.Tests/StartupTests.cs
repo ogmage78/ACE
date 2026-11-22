@@ -36,6 +36,10 @@ namespace ACE.Server.Tests
             DatabaseManager.Initialize();
         }
 
+        // Linux db CI does not run this method. WorldManager.Initialize starts a thread that
+        // calls LandblockManager.PreloadConfigLandblocks. Landblock..ctor reads DatManager.CellDat.
+        // With no client DAT files that property is null, and the NullReferenceException aborts
+        // the test host. The method stays here for a machine that has the DAT files.
         [TestMethod]
         public void WorldManager_Initialize()
         {
