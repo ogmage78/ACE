@@ -15,7 +15,7 @@ ACE Lead prepares a merge packet for Charles before every merge.
 
 Never commit client DATs, `db-data/`, `Logs/`, live `Source/ACE.Server/Config.js`, or `docker.env` secrets. Never edit `Source/ACE.Server/ServerBuildInfo_Dynamic.cs` or `AppVeyor/dbversion.txt`. Do not modernize Nullable, ImplicitUsings, StyleCop, or `Source/ACE.Server/Network/` serialization.
 
-Do not add a workflow that contains `self-hosted` or `ace-dats` except `.github/workflows/dat-tests.yml`. If that file exists, its only trigger is `workflow_dispatch`. This PR does not add it.
+Do not add a workflow that contains `self-hosted` or `ace-dats` except `.github/workflows/dat-tests.yml`. If that file exists, its only trigger is `workflow_dispatch`.
 
 ## Verify
 
