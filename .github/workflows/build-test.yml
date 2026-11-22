@@ -46,7 +46,6 @@ jobs:
   db:
     needs: build
     runs-on: ubuntu-latest
-    continue-on-error: true
     services:
       mysql:
         image: mysql:8.0
