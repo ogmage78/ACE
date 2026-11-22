@@ -74,24 +74,28 @@ The one-time `Source/test.runsettings` proof, not the CI unit command, is the un
 
 Each GitHub Actions job has its own disk. The `unit` and `db` jobs call `verify.sh build` on that runner before `verify.sh unit` or `verify.sh db`, because those modes pass `--no-build`.
 
-`scripts/guard.sh` is the protected-path check. It is not a `verify.sh` mode. It runs `git diff --name-only origin/master...HEAD` after `git fetch origin master`. On a pull request the workflow sets `GUARD_HEAD_BRANCH` from `github.head_ref`. When that branch is exactly `ace/sync-upstream`, the script prints each protected path as `NOTICE` and does not fail for those paths. Any other branch exits non-zero if the diff touches:
+`scripts/guard.sh` is the protected-path check. It is not a `verify.sh` mode. It runs `git diff --name-only --no-renames origin/master...HEAD` after `git fetch origin master`. On a pull request the workflow sets `GUARD_HEAD_BRANCH` from `github.head_ref` and `GUARD_SAME_REPO` when the pull request head repository equals `github.repository`. Branch name alone is not enough for either exception below.
+
+When the branch is exactly `ace/sync-upstream` and `GUARD_SAME_REPO` is `true`, the script prints each protected path as `NOTICE` and does not fail for those paths. Any other branch exits non-zero if the diff touches:
 
 - `Source/ACE.Server/ServerBuildInfo_Dynamic.cs`
 - `AppVeyor/dbversion.txt`
 - `Source/ACE.Server/Network/**`
 - `Source/Settings.StyleCop` or `.editorconfig`
 - `docker.env`
-- a `*.dat` file, or anything under `Dats/`, `db-data/`, `Logs/`, or `Config/`
+- a `*.dat` file in any case, or anything under `Dats/`, `db-data/`, `Logs/`, or `Config/`
 - `Source/ACE.Server/Config.js` (a name ending in `.example` or `.docker` is not this file)
 - an added or removed line in a `*.csproj` diff that contains `<Nullable>`, `<ImplicitUsings>`, or `StyleCop`
 - a new `Directory.Build.props` or `stylecop.json`
 
-On every branch, including `ace/sync-upstream`, the guard also reads `.github/workflows/` at `HEAD`:
+The same diff also fails when it edits `.github/workflows/**`, `.cursor/skills/verify-ace/scripts/guard.sh`, or `.cursor/skills/verify-ace/scripts/verify.sh`, unless the head branch matches `ace/guard-*` and `GUARD_SAME_REPO` is `true`. That exception prints those paths as `NOTICE`. It does not cover `ace/sync-upstream`, and the `ace/sync-upstream` notice does not cover these paths. It does not waive the runner rules below.
 
-- It fails if any workflow file other than `.github/workflows/dat-tests.yml` contains `self-hosted` or `ace-dats`.
+On every branch, including `ace/sync-upstream` and `ace/guard-*`, the guard also reads `.github/workflows/` at `HEAD`:
+
+- It fails if any workflow file other than `.github/workflows/dat-tests.yml` contains `self-hosted` or `ace-dats` in any case, or a `runs-on` value that contains `${{`.
 - If `.github/workflows/dat-tests.yml` exists, it fails unless the only trigger is `workflow_dispatch`.
 
-Do not add `dat-tests.yml` in this PR. Do not put `self-hosted` or `ace-dats` in `.github/workflows/build-test.yml`. Charles's Windows laptop is the runner those rules protect.
+The guard is a tripwire, not a lock. On `pull_request`, GitHub runs the workflow and `guard.sh` from the pull request's own merge commit, so a fork PR controls its own guard run. Do not add `dat-tests.yml`. Do not put `self-hosted` or `ace-dats` in `.github/workflows/build-test.yml`. Charles's Windows laptop is the runner those rules protect. Keep that runner off, and preferably unregistered.
 
 ## Evidence
 

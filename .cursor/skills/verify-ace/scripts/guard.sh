@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 # Fail the PR if the diff against origin/master touches protected ACE paths.
-# ace/sync-upstream prints those paths as a NOTICE and does not fail for them.
-# Workflow runner rules apply on every branch, including ace/sync-upstream:
+# ace/sync-upstream with GUARD_SAME_REPO=true prints those paths as a NOTICE
+# and does not fail for them. Branch name alone is not enough.
+# A same-repo branch matching ace/guard-* prints edits to .github/workflows/**
+# and to verify-ace scripts/guard.sh and scripts/verify.sh as a NOTICE and
+# does not fail for those paths. Any other branch fails if the diff touches them.
+# That exception is a tripwire, not a lock: on pull_request GitHub runs the
+# guard from the PR's own merge commit, so a fork controls its own guard run.
+# Workflow runner rules apply on every branch, including ace/sync-upstream
+# and ace/guard-*:
 # any workflow other than .github/workflows/dat-tests.yml that contains
-# self-hosted or ace-dats fails, and dat-tests.yml fails unless its only
-# trigger is workflow_dispatch.
+# self-hosted or ace-dats in any case, or a runs-on value with ${{, fails,
+# and dat-tests.yml fails unless its only trigger is workflow_dispatch.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -20,12 +27,26 @@ path_is_protected() {
     Source/Settings.StyleCop) return 0 ;;
     .editorconfig) return 0 ;;
     docker.env) return 0 ;;
-    *.dat) return 0 ;;
+    *.[Dd][Aa][Tt]) return 0 ;;
     Dats|Dats/*) return 0 ;;
     db-data|db-data/*) return 0 ;;
     Logs|Logs/*) return 0 ;;
     Config|Config/*) return 0 ;;
     Source/ACE.Server/Config.js) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Workflow files and the scripts the workflow runs. A PR can replace these
+# and then GitHub runs the replacement on pull_request. Flag the edit.
+# ace/guard-* plus GUARD_SAME_REPO is the only NOTICE exception.
+path_is_guard_surface() {
+  local f="$1"
+  f="${f#./}"
+  case "$f" in
+    .github/workflows|.github/workflows/*) return 0 ;;
+    .cursor/skills/verify-ace/scripts/guard.sh) return 0 ;;
+    .cursor/skills/verify-ace/scripts/verify.sh) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -65,7 +86,8 @@ collect_new_policy_files() {
 }
 
 # Print "path:line:text" for workflow files at HEAD, other than dat-tests.yml,
-# whose contents contain self-hosted or ace-dats.
+# whose contents contain self-hosted or ace-dats in any case, or a runs-on
+# value that contains ${{.
 collect_workflow_runner_hits() {
   local f hits
   while IFS= read -r f; do
@@ -98,7 +120,7 @@ def indent_of(s):
     return n
 
 for i, line in enumerate(lines, 1):
-    if "self-hosted" in line or re.search(r"ace-dats", line, re.IGNORECASE):
+    if re.search(r"self-hosted", line, re.IGNORECASE) or re.search(r"ace-dats", line, re.IGNORECASE):
         emit(i, line)
 
 i = 0
@@ -244,11 +266,15 @@ guard_main() {
   fi
 
   local protected=()
+  local guard_surface=()
   local path
   while IFS= read -r path; do
     [[ -z "$path" ]] && continue
     if path_is_protected "$path"; then
       protected+=("$path")
+    fi
+    if path_is_guard_surface "$path"; then
+      guard_surface+=("$path")
     fi
   done < <(git diff --name-only --no-renames "${base}...HEAD")
 
@@ -264,10 +290,15 @@ guard_main() {
   set -e
 
   local notice=0
+  local guard_notice=0
   # Branch name alone is not enough. CI sets GUARD_SAME_REPO from
   # github.event.pull_request.head.repo.full_name == github.repository.
+  # A fork can copy either branch name and still run its own guard.sh.
   if [[ "$branch" == "ace/sync-upstream" && "${GUARD_SAME_REPO:-}" == "true" ]]; then
     notice=1
+  fi
+  if [[ "$branch" == ace/guard-* && "${GUARD_SAME_REPO:-}" == "true" ]]; then
+    guard_notice=1
   fi
 
   if (( notice == 1 )); then
@@ -285,6 +316,15 @@ guard_main() {
     fi
     if ((${#protected[@]} == 0)) && [[ -z "$csproj_hits" ]] && [[ -z "$new_policy" ]]; then
       echo "NOTICE: no protected paths in origin/master...HEAD"
+    fi
+  fi
+
+  if (( guard_notice == 1 )); then
+    echo "NOTICE: head branch ${branch} matches ace/guard-* and GUARD_SAME_REPO is true. Workflow and verify-ace script edits are listed for Charles to review by hand. This is a tripwire, not a lock: a fork pull request runs its own guard."
+    if ((${#guard_surface[@]})); then
+      printf 'NOTICE: %s\n' "${guard_surface[@]}"
+    else
+      echo "NOTICE: no workflow or verify-ace script edits in origin/master...HEAD"
     fi
   fi
 
@@ -306,8 +346,15 @@ guard_main() {
       failed=1
     fi
   fi
+  if (( guard_notice == 0 )); then
+    if ((${#guard_surface[@]})); then
+      echo "guard: edit to .github/workflows or verify-ace guard.sh or verify.sh in origin/master...HEAD:" >&2
+      printf 'guard: %s\n' "${guard_surface[@]}" >&2
+      failed=1
+    fi
+  fi
   if [[ -n "$workflow_hits" ]]; then
-    echo "guard: workflow file other than .github/workflows/dat-tests.yml contains self-hosted or ace-dats:" >&2
+    echo "guard: workflow file other than .github/workflows/dat-tests.yml contains self-hosted or ace-dats in any case, or a runs-on value containing \${{:" >&2
     printf '%s\n' "$workflow_hits" >&2
     failed=1
   fi
@@ -321,6 +368,8 @@ guard_main() {
 
   if (( notice == 1 )); then
     echo "guard: workflow rules passed. Protected paths above are a NOTICE because the head branch is ace/sync-upstream. ${trigger_msg}."
+  elif (( guard_notice == 1 )); then
+    echo "guard: workflow rules passed. Workflow and verify-ace script edits above are a NOTICE because the head branch matches ace/guard-* and GUARD_SAME_REPO is true. ${trigger_msg}."
   else
     echo "guard: clean. origin/master...HEAD does not touch a protected path (branch ${branch}). ${trigger_msg}."
   fi
